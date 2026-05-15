@@ -1,16 +1,24 @@
 name: ShopGuiX
-version: '0.0.1'
+version: '0.0.2'
 main: org.ibenrm01.shopGuiX.ShopGuiX
 api-version: '1.21'
 authors: [ Ibenrm01 ]
-description: This is ShopGui Plugins for EcoSyX
+description: Shop GUI Plugin for EcoSyX
 depend: [ EcoSyX ]
 commands:
   shopgui:
-    description: "ShopGUI Server"
+    description: "Open shop / manage shop items"
     aliases: [ shop ]
-    permission: player.shop
   sellgui:
-    description: "Sell items player"
+    description: "Sell items"
     aliases: [ sell ]
-    permission: player.sell
+permissions:
+  player.shop:
+    description: "Browse and buy from the shop"
+    default: true
+  player.sell:
+    description: "Sell items to the shop"
+    default: true
+  shop.op:
+    description: "Add, remove, and edit shop items (admin)"
+    default: op
