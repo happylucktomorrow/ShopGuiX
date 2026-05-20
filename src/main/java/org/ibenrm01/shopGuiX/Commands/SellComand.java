@@ -6,22 +6,21 @@ import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.ibenrm01.shopGuiX.ShopGuiX;
 import org.ibenrm01.shopGuiX.Inventory.GUIHandler;
 import org.ibenrm01.shopGuiX.Inventory.GUISellHandler;
 import org.ibenrm01.shopGuiX.Utility;
 import org.ibenrm01.shopGuiX.YAMLConfig.Lang;
-import org.ibenrm01.shopGuiX.YAMLConfig.Sell;
 import org.ibenrm01.shopGuiX.YAMLConfig.Settings;
 import org.ibenrm01.shopGuiX.player.sell.PlayerSell;
+import org.ibenrm01.shopGuiX.solecraft.ShopModels;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class SellComand implements CommandExecutor {
@@ -54,39 +53,30 @@ public class SellComand implements CommandExecutor {
                             Lang.getInstance().getConfig().getString("add.noHandItem")));
                     return false;
                 }
-                YamlConfiguration sellConfig = Sell.getInstance().getConfig();
                 String itemType = hand.getType().name();
-                List<Map<?, ?>> items = sellConfig.getMapList("mainmenu");
-                Map<?, ?> matchedItem = null;
-                for (Map<?, ?> item : items) {
-                    if (itemType.equalsIgnoreCase(String.valueOf(item.get("type")))) {
-                        matchedItem = item;
-                        break;
-                    }
-                }
-                if (matchedItem == null) {
+                ShopModels.Item matchedItem = ShopGuiX.getInstance().getSolecraftClient().findItemByMaterial(itemType);
+                if (matchedItem == null || matchedItem.sellPrice <= 0) {
                     Map<String, String> placeholders = new HashMap<>();
                     placeholders.put("item", GUIHandler.getInstance().formatTitle(itemType));
                     player.sendMessage(prefix + " " + ChatColor.translateAlternateColorCodes('&',
                             Utility.getInstance().replace(lang.getConfig().getString("sell.no-sell"), placeholders)));
                     return false;
                 }
-                int pricePerItem = Integer.parseInt(matchedItem.get("price").toString());
+                int pricePerItem = matchedItem.sellPrice;
                 int totalPrice = pricePerItem * amount;
-                player.getInventory().setItemInMainHand(null);
-
-                String[] statue = Utility.getInstance().sellPayment(player.getUniqueId().toString(), totalPrice);
-
-                if (!statue[0].equals("success")) {
-                    player.sendMessage(prefix + " " + Utility.getInstance().setColor(lang.getConfig().getString("add.onlyPlayer")));
+                ShopModels.ShopResult sellResult = sell(player, matchedItem.id, amount);
+                if (!sellResult.ok) {
+                    player.sendMessage(prefix + " " + ChatColor.RED + sellResult.message);
                     return false;
                 }
+                player.getInventory().setItemInMainHand(null);
                 Map<String, String> placeholderss = new HashMap<>();
                 placeholderss.put("item", GUIHandler.getInstance().formatTitle(itemType));
                 placeholderss.put("price", String.valueOf(totalPrice));
                 placeholderss.put("amount", String.valueOf(amount));
                 player.sendMessage(prefix + " " + ChatColor.translateAlternateColorCodes('&', Utility.getInstance().replace(lang.getConfig().getString("sell.success"), placeholderss)));
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                ShopGuiX.getInstance().getBalanceBarService().refresh(player);
                 break;
             case "all":
                 ItemStack handItem = player.getInventory().getItemInMainHand();
@@ -97,19 +87,9 @@ public class SellComand implements CommandExecutor {
                 }
 
                 Material sellType = handItem.getType();
-                YamlConfiguration sellConfigs = Sell.getInstance().getConfig();
                 String itemTypes = sellType.name();
-                List<Map<?, ?>> itemss = sellConfigs.getMapList("mainmenu");
-
-                Map<?, ?> matchedItems = null;
-                for (Map<?, ?> item : itemss) {
-                    if (itemTypes.equalsIgnoreCase(String.valueOf(item.get("type")))) {
-                        matchedItems = item;
-                        break;
-                    }
-                }
-
-                if (matchedItems == null) {
+                ShopModels.Item matchedItems = ShopGuiX.getInstance().getSolecraftClient().findItemByMaterial(itemTypes);
+                if (matchedItems == null || matchedItems.sellPrice <= 0) {
                     Map<String, String> placeholders = new HashMap<>();
                     placeholders.put("item", itemTypes);
                     player.sendMessage(prefix + " " + ChatColor.translateAlternateColorCodes('&',
@@ -117,7 +97,7 @@ public class SellComand implements CommandExecutor {
                     return false;
                 }
 
-                int pricePerItems = Integer.parseInt(matchedItems.get("price").toString());
+                int pricePerItems = matchedItems.sellPrice;
                 int totalAmount = 0;
                 PlayerInventory inventory = player.getInventory();
                 for (ItemStack item : inventory.getContents()) {
@@ -129,6 +109,12 @@ public class SellComand implements CommandExecutor {
                 if (totalAmount == 0) {
                     player.sendMessage(prefix + " " + ChatColor.translateAlternateColorCodes('&',
                             Lang.getInstance().getConfig().getString("add.noHandItem")));
+                    return false;
+                }
+
+                ShopModels.ShopResult sellAllResult = sell(player, matchedItems.id, totalAmount);
+                if (!sellAllResult.ok) {
+                    player.sendMessage(prefix + " " + ChatColor.RED + sellAllResult.message);
                     return false;
                 }
 
@@ -150,19 +136,13 @@ public class SellComand implements CommandExecutor {
 
                 int totalPrices = pricePerItems * totalAmount;
 
-                String[] statues = Utility.getInstance().sellPayment(player.getUniqueId().toString(), totalPrices);
-
-                if (!statues[0].equals("success")) {
-                    player.sendMessage(prefix + " " + Utility.getInstance().setColor(lang.getConfig().getString("add.onlyPlayer")));
-                    return false;
-                }
-
                 Map<String, String> placeholdersss = new HashMap<>();
                 placeholdersss.put("item", GUIHandler.getInstance().formatTitle(itemTypes));
                 placeholdersss.put("price", String.valueOf(totalPrices));
                 placeholdersss.put("amount", String.valueOf(totalAmount));
                 player.sendMessage(prefix + " " + ChatColor.translateAlternateColorCodes('&', Utility.getInstance().replace(lang.getConfig().getString("sell.success"), placeholdersss)));
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                ShopGuiX.getInstance().getBalanceBarService().refresh(player);
                 break;
             default:
                 Inventory inv = GUISellHandler.getInstance().sellGUI(player);
@@ -171,5 +151,16 @@ public class SellComand implements CommandExecutor {
                 break;
         }
         return true;
+    }
+
+    private ShopModels.ShopResult sell(Player player, String itemId, int amount) {
+        try {
+            return ShopGuiX.getInstance().getSolecraftClient().sell(player, itemId, amount);
+        } catch (Exception error) {
+            ShopModels.ShopResult result = new ShopModels.ShopResult();
+            result.ok = false;
+            result.message = "Shop API error: " + error.getMessage();
+            return result;
+        }
     }
 }

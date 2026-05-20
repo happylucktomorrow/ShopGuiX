@@ -26,3 +26,12 @@ stackSelector:
     - "Harga: Rp{price}"
     - ""
     - "&l&bKlik Confirm untuk bayar"
+
+solecraft:
+  apiUrl: "http://127.0.0.1:4102"
+  serverId: "sv-lobby-transfer"
+  bridgeToken: ""
+  balanceBar:
+    enabled: true
+    title: "&aMoney: &f{balance}"
+    refreshTicks: 100

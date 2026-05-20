@@ -27,44 +27,11 @@ public class Utility {
     }
 
     public static String[] payment(String UID, int nominal) {
-        String[] result = ShopGuiX.getInstance().getEcoSystem().myMoney(UID);
-        if (!result[0].equals("success")) {
-            return new String[]{"notfound"};
-        }
-        int mymoney;
-        try {
-            mymoney = Integer.parseInt(result[1]);
-        } catch (NumberFormatException e) {
-            return new String[]{"must-int"};
-        }
-
-        if (mymoney < nominal) {
-            return new String[]{"notenough"};
-        }
-        String[] setting = ShopGuiX.getInstance().getEcoSystem().setMoney(UID, mymoney - nominal);
-        if (!setting[0].equals("success")) {
-            return new String[]{"notfound"};
-        }
-        return new String[]{"success", String.valueOf(nominal)};
+        return new String[]{"disabled"};
     }
 
     public static String[] sellPayment(String UID, int nominal) {
-        String[] result = ShopGuiX.getInstance().getEcoSystem().myMoney(UID);
-        if (!result[0].equals("success")) {
-            return new String[]{"notfound"};
-        }
-        int mymoney;
-        try {
-            mymoney = Integer.parseInt(result[1]);
-        } catch (NumberFormatException e) {
-            return new String[]{"must-int"};
-        }
-        
-        String[] setting = ShopGuiX.getInstance().getEcoSystem().setMoney(UID, mymoney + nominal);
-        if (!setting[0].equals("success")) {
-            return new String[]{"notfound"};
-        }
-        return new String[]{"success", String.valueOf(nominal)};
+        return new String[]{"disabled"};
     }
 
     public int findItemPrice(String category, String itemType) {

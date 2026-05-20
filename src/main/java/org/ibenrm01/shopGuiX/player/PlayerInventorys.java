@@ -35,6 +35,7 @@ public class PlayerInventorys {
     private Inventory inventory;
     private int pages;
     private String category;
+    private String categoryId;
 
     private PlayerInventorys() {
     }
@@ -61,5 +62,13 @@ public class PlayerInventorys {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(String categoryId) {
+        this.categoryId = categoryId;
     }
 }

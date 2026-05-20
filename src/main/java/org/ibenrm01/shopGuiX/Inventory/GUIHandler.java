@@ -10,9 +10,10 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.ibenrm01.shopGuiX.Utility;
 import org.ibenrm01.shopGuiX.YAMLConfig.Lang;
 import org.ibenrm01.shopGuiX.YAMLConfig.Settings;
-import org.ibenrm01.shopGuiX.YAMLConfig.Shop;
 import org.ibenrm01.shopGuiX.player.InvenGUI;
 import org.ibenrm01.shopGuiX.player.PlayerInventorys;
+import org.ibenrm01.shopGuiX.ShopGuiX;
+import org.ibenrm01.shopGuiX.solecraft.ShopModels;
 
 import java.util.*;
 
@@ -33,7 +34,8 @@ public class GUIHandler {
             inv.setItem(i, border);
         }
 
-        List<?> menu = Shop.getInstance().getConfig().getMapList("MainMenu");
+        ShopModels.Catalog catalog = loadCatalog();
+        List<ShopModels.Category> menu = catalog.categories;
         int[] usableSlots = {
                 11, 12, 13, 14, 15,
                 20, 21, 22, 23, 24,
@@ -41,10 +43,11 @@ public class GUIHandler {
         };
 
         for (int i = 0; i < Math.min(menu.size(), usableSlots.length); i++) {
-            Map<?, ?> category = (Map<?, ?>) menu.get(i);
-            String name = (String) category.get("name");
-            String description = (String) category.get("description");
-            String itemType = (String) category.get("items");
+            ShopModels.Category category = menu.get(i);
+            if (!category.enabled) continue;
+            String name = category.displayName;
+            String description = category.description;
+            String itemType = category.iconMaterial;
 
             Material mat = Material.matchMaterial(itemType.toUpperCase());
             if (mat == null) mat = Material.BARRIER;
@@ -52,10 +55,16 @@ public class GUIHandler {
             ItemStack item = new ItemStack(mat);
             ItemMeta meta = item.getItemMeta();
             meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
-            meta.setLore(Collections.singletonList(ChatColor.translateAlternateColorCodes('&', description)));
+            meta.setLore(Arrays.asList(
+                    ChatColor.translateAlternateColorCodes('&', description),
+                    ChatColor.DARK_GRAY + "solecraft-category:" + category.id
+            ));
             item.setItemMeta(meta);
 
             inv.setItem(usableSlots[i], item);
+        }
+        if (menu.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Shop catalog is empty or unavailable. Check Solecraft API and bridge token.");
         }
         String exitFormat = Settings.getInstance().getConfig().getString("textExit");
         if (exitFormat == null) exitFormat = "&cExit";
@@ -82,10 +91,9 @@ public class GUIHandler {
             inv.setItem(i, border);
         }
 
-        List<?> categories = Shop.getInstance().getConfig().getMapList("MainMenu");
-        Map<?, ?> category = categories.stream()
-                .map(obj -> (Map<?, ?>) obj)
-                .filter(cat -> formatKey((String) cat.get("name")).equalsIgnoreCase(categoryName))
+        ShopModels.Catalog catalog = loadCatalog();
+        ShopModels.Category category = catalog.categories.stream()
+                .filter(cat -> cat.id.equalsIgnoreCase(categoryName) || formatKey(cat.displayName).equalsIgnoreCase(categoryName))
                 .findFirst().orElse(null);
 
         if (category == null) {
@@ -94,7 +102,12 @@ public class GUIHandler {
             return new Object[]{"error"};
         }
 
-        List<?> items = (List<?>) category.get("in");
+        List<ShopModels.Item> items = new ArrayList<>();
+        for (ShopModels.Item item : catalog.items) {
+            if (item.enabled && item.categoryId.equals(category.id)) {
+                items.add(item);
+            }
+        }
         if (items == null || items.isEmpty()) {
             player.sendMessage(prefix + " " + ChatColor.translateAlternateColorCodes('&', lang.getConfig().getString("general.no-thereitem")));
             player.closeInventory();
@@ -111,14 +124,9 @@ public class GUIHandler {
         int end = Math.min(start + itemSlots.length, items.size());
 
         for (int i = start; i < end; i++) {
-            Map<?, ?> itemData = (Map<?, ?>) items.get(i);
-            if (!itemData.containsKey("name") || !itemData.containsKey("type") || !itemData.containsKey("price")) {
-                continue;
-            }
-
-            String rawName = itemData.get("name").toString();
-            String rawPrice = itemData.get("price").toString();
-            String typeName = itemData.get("type").toString().toUpperCase();
+            ShopModels.Item itemData = items.get(i);
+            String rawName = itemData.displayName;
+            String typeName = itemData.material.toUpperCase();
 
             Material mat = Material.matchMaterial(typeName);
             if (mat == null) mat = Material.BARRIER;
@@ -126,7 +134,7 @@ public class GUIHandler {
             ItemStack item = new ItemStack(mat, 16);
             ItemMeta meta = item.getItemMeta();
 
-            String price = Utility.getInstance().formatToRupiah(Integer.parseInt(rawPrice));
+            String price = Utility.getInstance().formatToRupiah(itemData.buyPrice);
             placeholders.put("price", String.valueOf(price));
             placeholders.put("name", formatTitle(rawName));
 
@@ -140,6 +148,7 @@ public class GUIHandler {
             }
 
             meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', rawName));
+            loreFinal.add(ChatColor.DARK_GRAY + "solecraft-item:" + itemData.id);
             meta.setLore(loreFinal);
             item.setItemMeta(meta);
 
@@ -175,7 +184,8 @@ public class GUIHandler {
         // Tampilkan salinan item dengan amount sesuai
         targetItem.setAmount(amount);
         ItemMeta meta = targetItem.getItemMeta();
-        int parsePrice = Utility.getInstance().findItemPrice(formatTitle(plInven.getCategory()), formatKey(targetItem.getType().name().toString()));
+        ShopModels.Item shopItem = ShopGuiX.getInstance().getSolecraftClient().findItem(invenGUI.getItemId());
+        int parsePrice = shopItem == null ? 0 : shopItem.buyPrice;
         String price = Utility.getInstance().formatToRupiah(parsePrice * amount);
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("price", String.valueOf(price));
@@ -231,7 +241,8 @@ public class GUIHandler {
             ItemStack stackItem = item.clone();
             stackItem.setAmount(i + 1);
             ItemMeta meta = stackItem.getItemMeta();
-            int parsePrice = Utility.getInstance().findItemPrice(formatTitle(PlayerInventorys.get(player.getUniqueId()).getCategory()), formatKey(item.getType().name().toString()));
+            ShopModels.Item shopItem = ShopGuiX.getInstance().getSolecraftClient().findItem(InvenGUI.get(player.getUniqueId()).getItemId());
+            int parsePrice = shopItem == null ? 0 : shopItem.buyPrice;
             String price = Utility.getInstance().formatToRupiah(parsePrice * stackAmount);
             Map<String, String> placeholders = new HashMap<>();
             placeholders.put("price", String.valueOf(price));
@@ -262,6 +273,15 @@ public class GUIHandler {
 
     public String formatKey(String input) {
         return input.toLowerCase().replace(" ", "_");
+    }
+
+    private ShopModels.Catalog loadCatalog() {
+        try {
+            return ShopGuiX.getInstance().getSolecraftClient().catalog();
+        } catch (Exception error) {
+            ShopGuiX.getInstance().getLogger().warning("Failed to refresh Solecraft shop catalog: " + error.getMessage());
+            return ShopGuiX.getInstance().getSolecraftClient().cachedCatalog();
+        }
     }
 
     public String formatTitle(String rawName) {

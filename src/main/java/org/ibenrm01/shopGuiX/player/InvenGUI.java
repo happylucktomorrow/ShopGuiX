@@ -12,6 +12,7 @@ public class InvenGUI {
     private boolean openShop;
     private int items_amount;
     private String type_items;
+    private String item_id;
     private String stage;
 
     private InvenGUI() {
@@ -61,6 +62,14 @@ public class InvenGUI {
 
     public void setTypeItems(String type_items) {
         this.type_items = type_items;
+    }
+
+    public String getItemId() {
+        return item_id;
+    }
+
+    public void setItemId(String item_id) {
+        this.item_id = item_id;
     }
 
     public String getStage() {

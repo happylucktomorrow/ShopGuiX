@@ -8,12 +8,14 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.ibenrm01.shopGuiX.ShopGuiX;
 import org.ibenrm01.shopGuiX.Inventory.GUIHandler;
 import org.ibenrm01.shopGuiX.Utility;
 import org.ibenrm01.shopGuiX.YAMLConfig.Lang;
 import org.ibenrm01.shopGuiX.YAMLConfig.Settings;
 import org.ibenrm01.shopGuiX.player.InvenGUI;
 import org.ibenrm01.shopGuiX.player.PlayerInventorys;
+import org.ibenrm01.shopGuiX.solecraft.ShopModels;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,9 +61,19 @@ public class ItemsEvent implements Listener {
         int slot = e.getSlot();
         Material type = clicked.getType();
         int amount = invenGUI.getItemsAmount();
-        ItemStack item = new ItemStack(Material.matchMaterial(invenGUI.getTypeItems()), amount);
+        ShopModels.Item shopItem = ShopGuiX.getInstance().getSolecraftClient().findItem(invenGUI.getItemId());
+        if (shopItem == null) {
+            closeWithError(p, invenGUI, "This shop item is not available.");
+            return;
+        }
+        Material material = Material.matchMaterial(shopItem.material);
+        if (material == null || material == Material.AIR) {
+            closeWithError(p, invenGUI, "This shop item has an invalid material.");
+            return;
+        }
+        ItemStack item = new ItemStack(material, amount);
 
-        int prices = utils.findItemPrice(GUIHandler.getInstance().formatTitle(plInven.getCategory()), GUIHandler.getInstance().formatKey(invenGUI.getTypeItems()));
+        int prices = shopItem.buyPrice;
         int totalprice = prices * amount;
 
         Map<String, String> placeholders = new HashMap<>();
@@ -84,24 +96,19 @@ public class ItemsEvent implements Listener {
                 p.closeInventory();
                 return;
             }
-            String[] pay = utils.payment(p.getUniqueId().toString(), totalprice);
-            if (pay[0].equals("notenough")) {
+            ShopModels.ShopResult result = buy(p, shopItem.id, amount);
+            if (!result.ok) {
                 invenGUI.setOpenShop(false);
-                p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.no-enoughmoney"), placeholders)));
-                p.closeInventory();
-                return;
-            } else if (pay[0].equals("success")) {
-                invenGUI.setOpenShop(false);
-                p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.success"), placeholders)));
-                p.closeInventory();
-                p.getInventory().addItem(item);
-                return;
-            } else {
-                invenGUI.setOpenShop(false);
-                p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.no-enoughmoney"), placeholders)));
+                p.sendMessage(prefix + " " + buyFailureMessage(result.message, placeholders));
                 p.closeInventory();
                 return;
             }
+            invenGUI.setOpenShop(false);
+            p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.success"), placeholders)));
+            p.closeInventory();
+            p.getInventory().addItem(item);
+            ShopGuiX.getInstance().getBalanceBarService().refresh(p);
+            return;
         } else if (slot == 42 && type == Material.RED_DYE) {
             invenGUI.setOpenShop(false);
             p.closeInventory();
@@ -137,7 +144,17 @@ public class ItemsEvent implements Listener {
                 int stacks = i + 1;
                 int amounts = stacks * 64;
 
-                int prices = utils.findItemPrice(GUIHandler.getInstance().formatTitle(plInven.getCategory()), GUIHandler.getInstance().formatKey(invenGUI.getTypeItems()));
+                ShopModels.Item shopItem = ShopGuiX.getInstance().getSolecraftClient().findItem(invenGUI.getItemId());
+                if (shopItem == null) {
+                    closeWithError(p, invenGUI, "This shop item is not available.");
+                    return;
+                }
+                Material material = Material.matchMaterial(shopItem.material);
+                if (material == null || material == Material.AIR) {
+                    closeWithError(p, invenGUI, "This shop item has an invalid material.");
+                    return;
+                }
+                int prices = shopItem.buyPrice;
                 int totalprice = prices * amounts;
 
                 Map<String, String> placeholders = new HashMap<>();
@@ -151,24 +168,48 @@ public class ItemsEvent implements Listener {
                     p.closeInventory();
                     return;
                 }
-                String[] pay = utils.payment(p.getUniqueId().toString(), totalprice);
-                if (pay[0].equals("notenough")) {
+                ShopModels.ShopResult result = buy(p, shopItem.id, amounts);
+                if (!result.ok) {
                     invenGUI.setOpenShop(false);
-                    p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.no-enoughmoney"), placeholders)));
+                    p.sendMessage(prefix + " " + buyFailureMessage(result.message, placeholders));
                     p.closeInventory();
-                } else if (pay[0].equals("success")) {
-                    invenGUI.setOpenShop(false);
-                    p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.success"), placeholders)));
-                    p.closeInventory();
-                    p.getInventory().addItem(new ItemStack(Material.matchMaterial(invenGUI.getTypeItems()), amounts));
-                } else {
-                    invenGUI.setOpenShop(false);
-                    p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.no-enoughmoney"), placeholders)));
-                    p.closeInventory();
+                    return;
                 }
+                invenGUI.setOpenShop(false);
+                p.sendMessage(prefix + " " + utils.setColor(utils.replace(lang.getConfig().getString("buy.success"), placeholders)));
+                p.closeInventory();
+                p.getInventory().addItem(new ItemStack(material, amounts));
+                ShopGuiX.getInstance().getBalanceBarService().refresh(p);
                 return;
             }
         }
+    }
+
+    private ShopModels.ShopResult buy(Player player, String itemId, int amount) {
+        try {
+            return ShopGuiX.getInstance().getSolecraftClient().buy(player, itemId, amount);
+        } catch (Exception error) {
+            ShopModels.ShopResult result = new ShopModels.ShopResult();
+            result.ok = false;
+            result.message = "Shop API error: " + error.getMessage();
+            return result;
+        }
+    }
+
+    private String buyFailureMessage(String message, Map<String, String> placeholders) {
+        if (message != null && message.toLowerCase().contains("stock")) {
+            return ChatColor.RED + message;
+        }
+        if (message != null && !message.trim().isEmpty()) {
+            return ChatColor.RED + message;
+        }
+        return utils.setColor(utils.replace(lang.getConfig().getString("buy.no-enoughmoney"), placeholders));
+    }
+
+    private void closeWithError(Player player, InvenGUI invenGUI, String message) {
+        invenGUI.setOpenShop(false);
+        player.sendMessage(prefix + " " + ChatColor.RED + message);
+        player.closeInventory();
     }
 
 }

@@ -4,7 +4,6 @@ main: org.ibenrm01.shopGuiX.ShopGuiX
 api-version: '1.21'
 authors: [ Ibenrm01 ]
 description: Shop GUI Plugin for EcoSyX
-depend: [ EcoSyX ]
 commands:
   shopgui:
     description: "Open shop / manage shop items"
@@ -12,6 +11,11 @@ commands:
   sellgui:
     description: "Sell items"
     aliases: [ sell ]
+  money:
+    description: "Show centralized Solecraft money"
+    aliases: [ balance ]
+  scmoney:
+    description: "Admin centralized Solecraft money tools"
 permissions:
   player.shop:
     description: "Browse and buy from the shop"
@@ -21,4 +25,7 @@ permissions:
     default: true
   shop.op:
     description: "Add, remove, and edit shop items (admin)"
+    default: op
+  shop.money.admin:
+    description: "Adjust centralized player balances"
     default: op
