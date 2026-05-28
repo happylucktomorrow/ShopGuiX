@@ -28,7 +28,7 @@ stackSelector:
     - "&l&bKlik Confirm untuk bayar"
 
 solecraft:
-  apiUrl: "http://127.0.0.1:4102"
+  apiUrl: "http://127.0.0.1:4000"
   serverId: "sv-lobby-transfer"
   bridgeToken: ""
   balanceBar:

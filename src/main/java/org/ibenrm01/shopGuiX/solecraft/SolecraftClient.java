@@ -40,7 +40,7 @@ public class SolecraftClient {
     }
 
     public static SolecraftClient fromSettings(JavaPlugin plugin, FileConfiguration config) {
-        String apiUrl = config.getString("solecraft.apiUrl", "http://127.0.0.1:4102");
+        String apiUrl = config.getString("solecraft.apiUrl", "http://127.0.0.1:4000");
         String serverId = config.getString("solecraft.serverId", "sv-lobby-transfer");
         String bridgeToken = config.getString("solecraft.bridgeToken", "");
         return new SolecraftClient(plugin, apiUrl, serverId, bridgeToken == null ? "" : bridgeToken.trim());
@@ -192,9 +192,13 @@ public class SolecraftClient {
 
     private static String trimTrailingSlash(String value) {
         if (value == null || value.trim().isEmpty()) {
-            return "http://127.0.0.1:4102";
+            return "http://127.0.0.1:4000";
         }
-        return value.trim().replaceAll("/+$", "");
+        String normalized = value.trim().replaceAll("/+$", "");
+        if (normalized.endsWith("/api")) {
+            normalized = normalized.substring(0, normalized.length() - "/api".length());
+        }
+        return normalized;
     }
 
     private static String encode(String value) {
